@@ -30,10 +30,12 @@ export default class EpubPlugin extends Plugin {
 
 		// [ADD] 注册 Deep Link 协议
 		this.registerObsidianProtocolHandler("epub-jump", async (params) => {
-			const fid = params.fid as string;
+			const filePath = params.file as string; 
 			const cfi = params.cfi as string;
 
-			const file = this.app.vault.getAbstractFileById(fid);
+			if (!filePath || !cfi) return;
+
+			const file = this.app.vault.getAbstractFileByPath(filePath);
 			if (!(file instanceof TFile)) {
 				new Notice("文件已被移动或删除");
 				return;
@@ -63,8 +65,7 @@ export default class EpubPlugin extends Plugin {
 		});
 	}
 
-	onunload() {
-	}
+	onunload() {}
 
 	async loadSettings() {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
