@@ -12,23 +12,24 @@ const TOOLBAR_STYLE = `
   background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,.2);
-  padding: 6px 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.3);
+  padding: 6px 10px;
   display: flex;
-  gap: 6px;
+  gap: 8px;
   align-items: center;
-  font-size: 12px;
 }
 .epub-selection-toolbar button {
-  background: var(--interactive-normal);
-  color: var(--text-normal);
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
   border: none;
-  border-radius: 6px;
-  padding: 4px 6px;
+  border-radius: 4px;
+  padding: 4px 8px;
   cursor: pointer;
+  font-size: 12px;
+  font-weight: bold;
 }
 .epub-selection-toolbar button:hover {
-  background: var(--interactive-hover);
+  opacity: 0.8;
 }
 `;
 
@@ -50,7 +51,7 @@ export const EpubReader = ({ contents, title, scrolled, tocOffset, tocBottomOffs
 }) => {
   const [location, setLocation] = useLocalStorageState<string | number>(`epub-${title}`, { defaultValue: 0 });
   const renditionRef = useRef<Rendition | null>(null);
-  const toolbarRef = useRef<HTMLDivElement | null>(null);
+  const toolbarRef = useRef<HTMLDivElement | null>(null); // [修复] 定义缺失的引用
   const [fontSize, setFontSize] = useState(100); 
 
   const isDarkMode = document.body.classList.contains('theme-dark');
@@ -71,12 +72,13 @@ export const EpubReader = ({ contents, title, scrolled, tocOffset, tocBottomOffs
     const bar = document.createElement("div");
     bar.className = "epub-selection-toolbar";
     bar.style.display = "none";
-    bar.innerHTML = `<button id="epub-copy-link">🔗 复制链接</button><button id="epub-highlight">✨ 高亮</button>`;
+    bar.innerHTML = `<button id="epub-copy-link">🔗 复制跳转链接</button><button id="epub-highlight">✨ 高亮</button>`;
     document.body.appendChild(bar);
     toolbarRef.current = bar;
     return bar;
   };
 
+  // 暴露接口给 Obsidian View
   useEffect(() => {
     const viewInstance = leaf.view as any;
     viewInstance.getCurrentCfi = () => {
@@ -115,7 +117,7 @@ export const EpubReader = ({ contents, title, scrolled, tocOffset, tocBottomOffs
         const bar = createToolbar();
         bar.style.display = "flex";
         bar.style.left = `${rect.left + rect.width / 2}px`;
-        bar.style.top = `${rect.top - 40}px`;
+        bar.style.top = `${rect.top - 45}px`;
       }
     };
 
@@ -139,15 +141,15 @@ export const EpubReader = ({ contents, title, scrolled, tocOffset, tocBottomOffs
       if (!(file instanceof TFile)) return;
 
       if (target.id === "epub-copy-link") {
-        const jumpLink = `[跳回原文](obsidian://epub-jump?file=${encodeURIComponent(file.path)}&cfi=${encodeURIComponent(cfi)})`;
-        const clipboardText = `📖 书籍：[[${file.path}]]\n📍 位置：${jumpLink}\n> ${text}`;
+        const jumpLink = `obsidian://epub-jump?file=${encodeURIComponent(file.path)}&cfi=${encodeURIComponent(cfi)}`;
+        const clipboardText = `📖 书籍：[[${file.path}]]\n📍 位置：[跳回原文](${jumpLink})\n> ${text}`;
         await navigator.clipboard.writeText(clipboardText);
-        new Notice("已复制双向链接摘录");
+        new Notice("已复制摘录及双向跳转链接");
       }
 
       if (target.id === "epub-highlight") {
         renditionRef.current?.annotations.highlight(cfi, {}, () => {});
-        new Notice("已高亮");
+        new Notice("已在当前页面高亮（临时）");
       }
     };
 
@@ -163,10 +165,10 @@ export const EpubReader = ({ contents, title, scrolled, tocOffset, tocBottomOffs
   const readerStyles = isDarkMode ? darkReaderTheme : lightReaderTheme;
 
   return (
-    <div style={{ height: "100vh" }}>
-      <div style={{ padding: '10px' }}>
-        <label htmlFor="fontSizeSlider">Font Size: </label>
-        <input id="fontSizeSlider" type="range" min="80" max="160" value={fontSize} onChange={e => setFontSize(parseInt(e.target.value))} />
+    <div style={{ height: "100vh", position: "relative" }}>
+      <div style={{ padding: '8px', borderBottom: '1px solid var(--background-modifier-border)' }}>
+        <label style={{ fontSize: '12px' }}>字号: </label>
+        <input type="range" min="80" max="180" value={fontSize} onChange={e => setFontSize(parseInt(e.target.value))} />
       </div>
       <ReactReader
         title={title}
