@@ -1,43 +1,55 @@
-name: Build and Release Plugin
+name: Build & Upload Release Assets (for BRAT)
 
 on:
-  push:
-    # 当你推送代码（或者在网页上保存修改）时触发
-    branches: [ "master", "main" ]
-  workflow_dispatch: # 允许你手动点击按钮触发
+  release:
+    types: [published]
+
+permissions:
+  contents: write
 
 jobs:
-  build:
+  build-and-upload:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '18'
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
 
-    - name: Install Dependencies
-      run: npm install
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
 
-    - name: Build Plugin
-      run: npm run build
+      - name: Verify tag matches manifest.json version
+        run: |
+          node -e "const m=require('./manifest.json'); const tag=process.env.TAG; if(!m.version) { console.error('manifest.json missing version'); process.exit(1);} if(m.version!==tag){ console.error(`Tag (${tag}) must equal manifest.json version (${m.version})`); process.exit(1);} console.log('OK: tag matches manifest version', tag);"
+        env:
+          TAG: ${{ github.event.release.tag_name }}
 
-    - name: Create Release
-      id: create_release
-      uses: softprops/action-gh-release@v1
-      with:
-        # 这里定义发布的名字，自动用时间戳，防止重复
-        tag_name: release-${{ github.run_number }}
-        name: Release ${{ github.run_number }}
-        draft: false
-        prerelease: false
-        # 把编译好的这三个文件打包发布
-        files: |
-          main.js
-          manifest.json
-          styles.css
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build
+        run: npm run build
+
+      - name: Decide release assets (skip empty styles.css)
+        id: assets
+        run: |
+          files="main.js
+manifest.json"
+          if [ -f styles.css ] && [ -s styles.css ]; then
+            files="$files
+styles.css"
+          fi
+          echo "files<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$files" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Upload assets to the GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.release.tag_name }}
+          files: ${{ steps.assets.outputs.files }}
