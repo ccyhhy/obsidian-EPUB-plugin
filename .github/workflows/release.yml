@@ -10,7 +10,6 @@ permissions:
 jobs:
   build-and-upload:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout tag
         uses: actions/checkout@v4
@@ -26,11 +25,11 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Verify tag matches manifest.json version
-        run: |
-          node -e "const m=require('./manifest.json'); const tag=process.env.TAG; if(!m.version) { console.error('manifest.json missing version'); process.exit(1);} if(m.version!==tag){ console.error(`Tag (${tag}) must equal manifest.json version (${m.version})`); process.exit(1);} console.log('OK: tag matches manifest version', tag);"
+      - name: Verify tag matches manifest version
         env:
           TAG: ${{ github.event.release.tag_name }}
+        run: |
+          node -e "const m=require('./manifest.json'); const tag=process.env.TAG; if(!m.version){console.error('manifest.json missing version'); process.exit(1);} if(m.version!==tag){console.error('Tag must equal manifest version. Tag='+tag+' manifest='+m.version); process.exit(1);} console.log('OK', tag);"
 
       - name: Build
         run: npm run build
@@ -38,12 +37,11 @@ jobs:
       - name: Decide release assets (skip empty styles.css)
         id: assets
         run: |
-          files="main.js
-manifest.json"
+          files=$'main.js\nmanifest.json'
           if [ -f styles.css ] && [ -s styles.css ]; then
-            files="$files
-styles.css"
+            files="$files"$'\nstyles.css'
           fi
+
           echo "files<<EOF" >> "$GITHUB_OUTPUT"
           echo "$files" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
