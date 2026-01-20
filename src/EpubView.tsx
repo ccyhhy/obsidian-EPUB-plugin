@@ -16,6 +16,23 @@ export class EpubView extends FileView {
   }
 
   onPaneMenu(menu: Menu, source: 'more-options' | 'tab-header' | string): void {
+	  // [ADD] 添加“复制跳转链接”按钮
+    menu.addItem((item) => {
+      item
+        .setTitle("Copy Link to Current Page")
+        .setIcon("link")
+        .onClick(() => {
+          // 调用我们在 React 里暴露出来的方法
+          const cfi = (this as any).getCurrentCfi?.();
+          if (cfi) {
+            const link = `[⚓ ${this.file.basename}](obsidian://epub-jump?file=${encodeURIComponent(this.file.path)}&cfi=${encodeURIComponent(cfi)})`;
+            navigator.clipboard.writeText(link);
+            // new Notice("链接已复制！");
+          } else {
+            // new Notice("无法获取位置，请等待书籍加载");
+          }
+        });
+    });
     menu.addItem((item) => {
       item
         .setTitle("Create new epub note")
