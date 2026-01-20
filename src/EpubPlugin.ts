@@ -28,28 +28,33 @@ export default class EpubPlugin extends Plugin {
 
 		this.addSettingTab(new EpubSettingTab(this.app, this));
 
-		// [ADD] 注册 Deep Link 协议
+		// [修复] 注册 Deep Link 协议处理器
 		this.registerObsidianProtocolHandler("epub-jump", async (params) => {
 			const filePath = params.file as string; 
 			const cfi = params.cfi as string;
 
 			if (!filePath || !cfi) return;
 
+			// 使用正确的 API: getAbstractFileByPath
 			const file = this.app.vault.getAbstractFileByPath(filePath);
 			if (!(file instanceof TFile)) {
-				new Notice("文件已被移动或删除");
+				new Notice("找不到对应的电子书文件");
 				return;
 			}
 
+			// 查找是否已经打开了该文件
 			let targetLeaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_EPUB).find(l => (l.view as any).file?.path === file.path);
 
 			if (!targetLeaf) {
+				// 如果没打开，就在新页签打开
 				targetLeaf = this.app.workspace.getLeaf(false);
 				await targetLeaf.openFile(file);
 			} else {
+				// 如果已打开，就激活该页签
 				this.app.workspace.setActiveLeaf(targetLeaf, { focus: true });
 			}
 
+			// 等待组件加载并执行跳转
 			const view = targetLeaf.view as any;
 			let attempts = 0;
 			const jumpTimer = window.setInterval(() => {
@@ -57,9 +62,9 @@ export default class EpubPlugin extends Plugin {
 				if (view.jumpToCfi) {
 					view.jumpToCfi(cfi);
 					window.clearInterval(jumpTimer);
-				} else if (attempts > 20) {
+				} else if (attempts > 30) {
 					window.clearInterval(jumpTimer);
-					console.error("Epub Reader component not ready.");
+					console.error("Epub跳转失败：视图未就绪");
 				}
 			}, 100);
 		});
