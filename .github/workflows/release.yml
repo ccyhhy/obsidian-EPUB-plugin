@@ -1,0 +1,43 @@
+name: Build and Release Plugin
+
+on:
+  push:
+    # 当你推送代码（或者在网页上保存修改）时触发
+    branches: [ "master", "main" ]
+  workflow_dispatch: # 允许你手动点击按钮触发
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+
+    - name: Install Dependencies
+      run: npm install
+
+    - name: Build Plugin
+      run: npm run build
+
+    - name: Create Release
+      id: create_release
+      uses: softprops/action-gh-release@v1
+      with:
+        # 这里定义发布的名字，自动用时间戳，防止重复
+        tag_name: release-${{ github.run_number }}
+        name: Release ${{ github.run_number }}
+        draft: false
+        prerelease: false
+        # 把编译好的这三个文件打包发布
+        files: |
+          main.js
+          manifest.json
+          styles.css
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
