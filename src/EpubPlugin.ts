@@ -32,20 +32,23 @@ export default class EpubPlugin extends Plugin {
 		// 格式: obsidian://epub-jump?file=xxx&cfi=xxx
 		// ============================================================
 		this.registerObsidianProtocolHandler("epub-jump", async (params) => {
-			const filePath = params.file;
-			const cfi = params.cfi;
+  const fid = params.fid as string;
+  const cfi = params.cfi as string;
 
-			if (!filePath || !cfi) return;
+  const file = this.app.vault.getAbstractFileById(fid);
+  if (!(file instanceof TFile)) {
+    new Notice("文件已被移动或删除");
+    return;
+  }
 
-			// 1. 寻找或打开目标 Leaf
-			let targetLeaf: WorkspaceLeaf = null;
-			
-			// 遍历现有 Tab 找书
-			this.app.workspace.iterateAllLeaves((leaf) => {
-				if (leaf.view.getViewType() === VIEW_TYPE_EPUB && (leaf.view as any).file?.path === filePath) {
-					targetLeaf = leaf;
-				}
-			});
+  const leaf = this.app.workspace.getLeaf();
+  await leaf.openFile(file);
+
+  setTimeout(() => {
+    (leaf.view as any).highlightCfi?.(cfi);
+  }, 800);
+});
+
 
 			if (!targetLeaf) {
 				const file = this.app.vault.getAbstractFileByPath(filePath);
