@@ -46,10 +46,11 @@ export const EpubReader = ({ contents, title, scrolled, tocOffset, tocBottomOffs
 
     // 1. 暴露 Getter：获取当前 CFI
     viewInstance.getCurrentCfi = () => {
-      // 优先尝试获取选区 (如果 react-reader 暴露了 selection)
-      // 但因为 iframe 隔离，最稳妥是获取当前页面位置
-      return renditionRef.current?.currentLocation()?.start?.cfi;
-    };
+  // 兼容不同版本的类型定义：DisplayedLocation 可能未声明 start
+  const loc = renditionRef.current?.currentLocation() as any;
+  return (loc?.start?.cfi ?? (typeof location === 'string' ? location : undefined)) as (string | undefined);
+};
+
 
     // 2. 暴露 Setter：跳转到 CFI
     viewInstance.jumpToCfi = (cfi: string) => {
@@ -63,7 +64,7 @@ export const EpubReader = ({ contents, title, scrolled, tocOffset, tocBottomOffs
       delete viewInstance.getCurrentCfi;
       delete viewInstance.jumpToCfi;
     };
-  }, [leaf, setLocation]); // 依赖于 setLocation 确保能调用最新的状态更新器
+  }, [leaf, setLocation, location]); // 依赖于 setLocation 确保能调用最新的状态更新器
   // ============================================================
   useEffect(() => {
     const handleResize = () => {
