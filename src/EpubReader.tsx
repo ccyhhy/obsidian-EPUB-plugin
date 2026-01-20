@@ -37,6 +37,34 @@ export const EpubReader = ({ contents, title, scrolled, tocOffset, tocBottomOffs
     updateFontSize(fontSize);
   }, [fontSize, updateFontSize]);
 
+	// ============================================================
+  // [ADD] 核心修改：将 React 内部状态暴露给 Obsidian View 实例
+  // ============================================================
+  useEffect(() => {
+    // 这里的 leaf.view 就是 Obsidian 的视图实例
+    const viewInstance = leaf.view as any;
+
+    // 1. 暴露 Getter：获取当前 CFI
+    viewInstance.getCurrentCfi = () => {
+      // 优先尝试获取选区 (如果 react-reader 暴露了 selection)
+      // 但因为 iframe 隔离，最稳妥是获取当前页面位置
+      return renditionRef.current?.currentLocation()?.start?.cfi;
+    };
+
+    // 2. 暴露 Setter：跳转到 CFI
+    viewInstance.jumpToCfi = (cfi: string) => {
+      console.log("EpubReader: Jumping to", cfi);
+      // 直接调用 react-reader 的状态更新函数，触发重新渲染
+      setLocation(cfi);
+    };
+
+    // 清理函数
+    return () => {
+      delete viewInstance.getCurrentCfi;
+      delete viewInstance.jumpToCfi;
+    };
+  }, [leaf, setLocation]); // 依赖于 setLocation 确保能调用最新的状态更新器
+  // ============================================================
   useEffect(() => {
     const handleResize = () => {
       const epubContainer = leaf.view.containerEl.querySelector('div.epub-container');
