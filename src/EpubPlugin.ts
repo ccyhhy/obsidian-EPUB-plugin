@@ -1,4 +1,4 @@
-import { addIcon, Plugin, WorkspaceLeaf } from 'obsidian';
+import { addIcon, Plugin, WorkspaceLeaf, TFile, Notice } from 'obsidian';
 import { EpubPluginSettings, EpubSettingTab, DEFAULT_SETTINGS } from './EpubPluginSettings';
 import { EpubView, EPUB_FILE_EXTENSION, ICON_EPUB, VIEW_TYPE_EPUB } from './EpubView';
 
@@ -27,52 +27,35 @@ export default class EpubPlugin extends Plugin {
 		}
 
 		this.addSettingTab(new EpubSettingTab(this.app, this));
-		// ============================================================
+
 		// [ADD] 注册 Deep Link 协议
-		// 格式: obsidian://epub-jump?file=xxx&cfi=xxx
-		// ============================================================
 		this.registerObsidianProtocolHandler("epub-jump", async (params) => {
-  const fid = params.fid as string;
-  const cfi = params.cfi as string;
+			const fid = params.fid as string;
+			const cfi = params.cfi as string;
 
-  const file = this.app.vault.getAbstractFileById(fid);
-  if (!(file instanceof TFile)) {
-    new Notice("文件已被移动或删除");
-    return;
-  }
+			const file = this.app.vault.getAbstractFileById(fid);
+			if (!(file instanceof TFile)) {
+				new Notice("文件已被移动或删除");
+				return;
+			}
 
-  const leaf = this.app.workspace.getLeaf();
-  await leaf.openFile(file);
-
-  setTimeout(() => {
-    (leaf.view as any).highlightCfi?.(cfi);
-  }, 800);
-});
-
+			let targetLeaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_EPUB).find(l => (l.view as any).file?.path === file.path);
 
 			if (!targetLeaf) {
-				const file = this.app.vault.getAbstractFileByPath(filePath);
-				if (!file) {
-					// new Notice(`File not found: ${filePath}`);
-					return;
-				}
 				targetLeaf = this.app.workspace.getLeaf(false);
-				await targetLeaf.openFile(file as any);
+				await targetLeaf.openFile(file);
 			} else {
 				this.app.workspace.setActiveLeaf(targetLeaf, { focus: true });
 			}
 
-			// 2. 执行跳转
-			// 我们需要等待 React 组件挂载完成并把 jumpToCfi 挂到 view 上
 			const view = targetLeaf.view as any;
 			let attempts = 0;
-			
 			const jumpTimer = window.setInterval(() => {
 				attempts++;
-				if (view.jumpToCfi) { // 核心：检查 React 是否已经把接口暴露出来了
+				if (view.jumpToCfi) {
 					view.jumpToCfi(cfi);
 					window.clearInterval(jumpTimer);
-				} else if (attempts > 20) { // 2秒超时
+				} else if (attempts > 20) {
 					window.clearInterval(jumpTimer);
 					console.error("Epub Reader component not ready.");
 				}
