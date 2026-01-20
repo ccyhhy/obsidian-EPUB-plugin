@@ -5,6 +5,47 @@ import { ReactReader, ReactReaderStyle, type IReactReaderStyle } from 'react-rea
 import type { Contents, Rendition } from 'epubjs';
 import useLocalStorageState from 'use-local-storage-state';
 
+// ========== 悬浮工具条样式 ==========
+const TOOLBAR_STYLE = `
+.epub-selection-toolbar {
+  position: absolute;
+  z-index: 999999;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.2);
+  padding: 6px 8px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+}
+
+.epub-selection-toolbar button {
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  border: none;
+  border-radius: 6px;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+
+.epub-selection-toolbar button:hover {
+  background: var(--interactive-hover);
+}
+`;
+
+// 把样式注入页面
+const injectToolbarStyle = () => {
+  if (document.getElementById("epub-toolbar-style")) return;
+
+  const style = document.createElement("style");
+  style.id = "epub-toolbar-style";
+  style.innerHTML = TOOLBAR_STYLE;
+  document.head.appendChild(style);
+};
+
+
 export const EpubReader = ({ contents, title, scrolled, tocOffset, tocBottomOffset, leaf }: {
   contents: ArrayBuffer;
   title: string;
@@ -15,6 +56,25 @@ export const EpubReader = ({ contents, title, scrolled, tocOffset, tocBottomOffs
 }) => {
   const [location, setLocation] = useLocalStorageState<string | number>(`epub-${title}`, { defaultValue: 0 });
   const renditionRef = useRef<Rendition | null>(null);
+// 创建工具条
+const createToolbar = () => {
+  if (toolbarRef.current) return toolbarRef.current;
+
+  injectToolbarStyle();
+
+  const bar = document.createElement("div");
+  bar.className = "epub-selection-toolbar";
+  bar.style.display = "none";
+
+  bar.innerHTML = `
+    <button id="epub-copy-link">🔗 复制链接</button>
+    <button id="epub-highlight">✨ 高亮</button>
+  `;
+
+  document.body.appendChild(bar);
+  toolbarRef.current = bar;
+  return bar;
+};
   const [fontSize, setFontSize] = useState(100); 
 
   const isDarkMode = document.body.classList.contains('theme-dark');
@@ -79,6 +139,84 @@ export const EpubReader = ({ contents, title, scrolled, tocOffset, tocBottomOffs
     };
 
     leaf.view.app.workspace.on('resize', handleResize);
+	  // === 监听文本选择，显示浮层工具条 ===
+const showToolbar = (x: number, y: number) => {
+  const bar = createToolbar();
+  bar.style.display = "flex";
+  bar.style.left = `${x}px`;
+  bar.style.top = `${y - 40}px`; // 选区上方
+};
+
+const hideToolbar = () => {
+  toolbarRef.current?.setAttribute("style", "display:none");
+};
+
+const onSelectionChange = () => {
+  const sel = window.getSelection();
+  const text = sel?.toString()?.trim();
+
+  if (!text) {
+    hideToolbar();
+    return;
+  }
+
+  const range = sel?.getRangeAt(0);
+  const rect = range?.getBoundingClientRect();
+
+  if (rect) {
+    showToolbar(rect.left + rect.width / 2, rect.top);
+  }
+};
+
+document.addEventListener("selectionchange", onSelectionChange);
+
+// 清理
+return () => {
+  document.removeEventListener("selectionchange", onSelectionChange);
+};
+const bar = createToolbar();
+
+bar.addEventListener("click", async (e) => {
+  const target = e.target as HTMLElement;
+  const sel = window.getSelection();
+  const text = sel?.toString()?.trim();
+
+  const loc = renditionRef.current?.currentLocation() as any;
+  const cfi = loc?.start?.cfi ?? location;
+
+  if (!cfi || !text) {
+    new Notice("请先选中文本");
+    return;
+  }
+
+  const file = leaf.view.file;
+  const fid = file.id;
+
+  // === 复制【双向链接 + 可读文字】 ===
+  if (target.id === "epub-copy-link") {
+    const bookLink = `[[${file.path}]]`;
+
+    const jumpLink =
+      `[跳回原文](obsidian://epub-jump?fid=${encodeURIComponent(fid)}` +
+      `&cfi=${encodeURIComponent(cfi)}` +
+      `&text=${encodeURIComponent(text)})`;
+
+    const clipboardText =
+      `📖 书籍：${bookLink}\n` +
+      `📍 位置：${jumpLink}\n` +
+      `> ${text}`;
+
+    await navigator.clipboard.writeText(clipboardText);
+    new Notice("已复制双向链接摘录");
+  }
+
+  // === 高亮 ===
+  if (target.id === "epub-highlight") {
+    renditionRef.current?.annotations.highlight(cfi, {}, () => {});
+    new Notice("已高亮");
+  }
+});
+
     return () => leaf.view.app.workspace.off('resize', handleResize);
   }, [leaf]);
 
