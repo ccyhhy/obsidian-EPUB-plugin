@@ -27,6 +27,54 @@ export default class EpubPlugin extends Plugin {
 		}
 
 		this.addSettingTab(new EpubSettingTab(this.app, this));
+		// ============================================================
+		// [ADD] 注册 Deep Link 协议
+		// 格式: obsidian://epub-jump?file=xxx&cfi=xxx
+		// ============================================================
+		this.registerObsidianProtocolHandler("epub-jump", async (params) => {
+			const filePath = params.file;
+			const cfi = params.cfi;
+
+			if (!filePath || !cfi) return;
+
+			// 1. 寻找或打开目标 Leaf
+			let targetLeaf: WorkspaceLeaf = null;
+			
+			// 遍历现有 Tab 找书
+			this.app.workspace.iterateAllLeaves((leaf) => {
+				if (leaf.view.getViewType() === VIEW_TYPE_EPUB && (leaf.view as any).file?.path === filePath) {
+					targetLeaf = leaf;
+				}
+			});
+
+			if (!targetLeaf) {
+				const file = this.app.vault.getAbstractFileByPath(filePath);
+				if (!file) {
+					// new Notice(`File not found: ${filePath}`);
+					return;
+				}
+				targetLeaf = this.app.workspace.getLeaf(false);
+				await targetLeaf.openFile(file as any);
+			} else {
+				this.app.workspace.setActiveLeaf(targetLeaf, { focus: true });
+			}
+
+			// 2. 执行跳转
+			// 我们需要等待 React 组件挂载完成并把 jumpToCfi 挂到 view 上
+			const view = targetLeaf.view as any;
+			let attempts = 0;
+			
+			const jumpTimer = window.setInterval(() => {
+				attempts++;
+				if (view.jumpToCfi) { // 核心：检查 React 是否已经把接口暴露出来了
+					view.jumpToCfi(cfi);
+					window.clearInterval(jumpTimer);
+				} else if (attempts > 20) { // 2秒超时
+					window.clearInterval(jumpTimer);
+					console.error("Epub Reader component not ready.");
+				}
+			}, 100);
+		});
 	}
 
 	onunload() {
