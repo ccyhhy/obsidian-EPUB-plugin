@@ -37,14 +37,20 @@ jobs:
       - name: Decide release assets (skip empty styles.css)
         id: assets
         run: |
-          files=$'main.js\nmanifest.json'
+          # 使用更稳定的方式构建文件列表
+          FILES="main.js"
+          FILES="$FILES"$'\n'"manifest.json"
+          
           if [ -f styles.css ] && [ -s styles.css ]; then
-            files="$files"$'\nstyles.css'
+            FILES="$FILES"$'\n'"styles.css"
           fi
-
-          echo "files<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$files" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          
+          # 修复 GITHUB_OUTPUT 写入逻辑，确保 EOF 格式正确
+          {
+            echo "files<<EOF"
+            echo "$FILES"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Upload assets to the GitHub Release
         uses: softprops/action-gh-release@v2
